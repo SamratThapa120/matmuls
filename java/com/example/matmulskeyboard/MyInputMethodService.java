@@ -34,6 +34,7 @@ import com.google.mlkit.nl.smartreply.SmartReplySuggestionResult;
 
 import org.json.JSONException;
 
+import java.io.Serializable;
 import java.net.URISyntaxException;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -48,21 +49,19 @@ import static androidx.core.app.NotificationCompat.PRIORITY_DEFAULT;
 import static androidx.core.app.NotificationCompat.PRIORITY_HIGH;
 import static androidx.core.app.NotificationCompat.PRIORITY_MIN;
 
-public class MyInputMethodService extends InputMethodService implements KeyboardView.OnKeyboardActionListener {
+public class MyInputMethodService extends InputMethodService implements KeyboardView.OnKeyboardActionListener, Serializable {
 
     public static final String EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE";
     public static final String EXTRA_RESULT_INTENT = "EXTRA_RESULT_INTENT";
-    public static final String EXTRA_INTENT = "EXTRA_INTENT";
     public static final String SCREENSHOT_HANDLER_THREAD = "SCREENSHOT_HANDLER_THREAD";
     static final int VIRT_DISPLAY_FLAGS =DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC;
     private static final int START_FOREGROUND = 1;
-    private static final String CHANNEL_DEFAULT_IMPORTANCE ="CHANNEL_DEFAULT_IMPORTANCE" ;
+    public static final String KEYBOARD_REFERENCE = "KEYBOARD_REFERENCE" ;
 
     private KeyboardView keyboardView;
     private Keyboard keyboard;
     private TextView predictionView;
     private boolean caps = false;
-    private Timer screenshotTimer;
     private int SCREENSHOT_TIMER = 5000;
     private ScreenshotManager screenshotManager;
     private MediaProjectionManager mgr;
@@ -77,7 +76,6 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     private MediaProjection projection;
     private VirtualDisplay vdisplay;
     private AtomicReference<byte[]> latestPng=new AtomicReference<byte[]>();
-    private Intent receivedIntent;
     public WindowManager getWindowManager() {
         return windowMgr;
     }
@@ -169,18 +167,13 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
         try {
             screenshotHandlerThread = new HandlerThread(SCREENSHOT_HANDLER_THREAD, Process.THREAD_PRIORITY_BACKGROUND);
             screenshotHandlerThread.start();
-            Log.d("LOGGER", "1Got media projection");
             screenshotHandler = new Handler(screenshotHandlerThread.getLooper());
-            Log.d("LOGGER", "2Got media projection");
             projection = mgr.getMediaProjection(screenshotResultCode, screenshotPermissionIntent);
-            Log.d("LOGGER", "3Got media projection isnull:" + (mgr == null));
             imageTransmogrifier = new ImageTransmogrifier(this);
-            Log.d("LOGGER", "4Got media projection");
             vdisplay = projection.createVirtualDisplay("andprojector",
                     imageTransmogrifier.getWidth(), imageTransmogrifier.getHeight(),
                     imageTransmogrifier.getDensity(),
                     VIRT_DISPLAY_FLAGS, imageTransmogrifier.getSurface(), null, screenshotHandler);
-            Log.d("LOGGER", "6Got media projection");
             MediaProjection.Callback cb = new MediaProjection.Callback() {
                 @Override
                 public void onStop() {
@@ -192,27 +185,27 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
             Log.d("LOGGER", "Got media projection");
         }
         catch (Exception e){
+            Log.d("LOGGER", "Got error while setting media projector");
             hasPermission = false;
-            SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-            pref.edit().remove(EXTRA_RESULT_CODE).remove(EXTRA_RESULT_INTENT).commit();
         }
+    }
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent.hasExtra(EXTRA_RESULT_INTENT)) {
+            this.screenshotPermissionIntent = intent.getParcelableExtra(EXTRA_RESULT_INTENT);
+            this.screenshotResultCode = intent.getIntExtra(EXTRA_RESULT_CODE,-1);
+            return START_REDELIVER_INTENT;
+        }
+        return super.onStartCommand(intent, flags, startId);
     }
 
     private void checkForScreenshotPermission() {
         SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-        if (pref.contains(EXTRA_RESULT_CODE) && pref.contains(EXTRA_RESULT_INTENT)) {
-            try {
-                //            Gson gson = new Gson();
-                IntentConverter gson = new IntentConverter();
-                screenshotPermissionIntent = gson.jsonToINTENT(pref.getString(EXTRA_RESULT_INTENT, ""),getApplicationContext());
-                screenshotResultCode = pref.getInt(EXTRA_RESULT_CODE, -1);
-                hasPermission = true;
-                Log.d("LOGGER", "HAS_PERMISSION Extras: "+screenshotPermissionIntent.getExtras());
-            } catch (JSONException e) {
-                hasPermission = false;
-                Log.d("LOGGER", "ERROR converting back to Intent");
-            }
-        } else {
+        if(screenshotPermissionIntent != null){
+            hasPermission = true;
+            Log.d("LOGGER","has permission, has intent");
+        }
+        else {
             Log.d("LOGGER", "NO_PERMISSION while checking screenshot permission");
             hasPermission = false;
         }
@@ -263,6 +256,10 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
 
     public void receivedPredictionResponse(SmartReplySuggestionResult result) {
         predictionView.setText(result.getSuggestions().get(0).getText());
+    }
+
+    public void setScreenCaptureIntent(Intent data) {
+        this.screenshotPermissionIntent = data;
     }
 
     private class Predictor extends TimerTask {

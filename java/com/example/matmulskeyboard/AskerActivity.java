@@ -18,6 +18,7 @@ import com.google.gson.Gson;
 public class AskerActivity extends FragmentActivity {
     private MediaProjectionManager mgr;
     private static final int REQUEST_SCREENSHOT = 800;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -30,19 +31,11 @@ public class AskerActivity extends FragmentActivity {
         if(requestCode==REQUEST_SCREENSHOT){
             if(resultCode==RESULT_OK){
                 Log.d("LOGGER","resultFine");
-                SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                try {
-                    //                Gson gson = new Gson();
-                    IntentConverter gson = new IntentConverter();
-                    String json = gson.intentToJSON(getApplicationContext(),data);
-                    Log.d("LOGGER",json+"    "+resultCode);
-                    pref.edit().putString(MyInputMethodService.EXTRA_RESULT_INTENT,json)
-                            .putInt(MyInputMethodService.EXTRA_RESULT_CODE,resultCode).commit();
-                    this.finish();
-                } catch (JsonProcessingException e) {
-                    Log.d("LOGGER","ERROR converting Intent");
-
-                }
+                Intent intent = new Intent(this,MyInputMethodService.class);
+                intent.putExtra(MyInputMethodService.EXTRA_RESULT_INTENT,data);
+                intent.putExtra(MyInputMethodService.EXTRA_RESULT_CODE,resultCode);
+                startService(intent);
+                this.finish();
             }
         }
         else{

@@ -63,13 +63,13 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
         this.height = height;
         this.density = displayMetrics.densityDpi;
         imageReader = ImageReader.newInstance(width, height,
-                PixelFormat.RGBA_8888, 2);
+                PixelFormat.RGBA_8888, 1);
         imageReader.setOnImageAvailableListener(this, svc.getHandler());
     }
 
     @Override
     public void onImageAvailable(ImageReader reader) {
-        final Image image=imageReader.acquireLatestImage();
+        final Image image=reader.acquireLatestImage();
         if (image!=null) {
             Image.Plane[] planes=image.getPlanes();
             ByteBuffer buffer=planes[0].getBuffer();
@@ -96,7 +96,7 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
             cropped.compress(Bitmap.CompressFormat.PNG, 100, baos);
             byte[] newPng=baos.toByteArray();
             svc.updateImage(newPng);
-            Log.d("LOGGER","NEW_IMAGE_UPDATED");
+            Log.d("UPDATED_IMAGE","NEW_IMAGE_UPDATED ");
         }
     }
 
