@@ -1,32 +1,39 @@
 package com.example.matmulskeyboard;
 
+import com.google.mlkit.nl.smartreply.TextMessage;
+
+import java.util.Arrays;
+import java.util.List;
+
 public class MessagesStore {
-    private String[] messages;
+    private TextMessage[] messages;
     private int maxLimit;
     private int currentCount;
     private int currentPointer;
+    private String userID;
 
     public MessagesStore(int maxLimit) {
         this.maxLimit = maxLimit;
         this.currentCount = 0;
         this.currentPointer = 0;
-        this.messages = new String[maxLimit];
+        this.messages = new TextMessage[maxLimit];
+        this.userID = userID;
     }
-    public String[] getRecentMessages(int count){
+    public List<TextMessage> getRecentMessages(int count){
         if(count>maxLimit)
             count = maxLimit;
         if (count>currentCount){
-            return this.getNMessages(currentCount);
+            return Arrays.asList(this.getNMessages(currentCount));
         }
         else{
-            return this.getNMessages(count);
+            return Arrays.asList(this.getNMessages(count));
         }
     }
 
-    private String[] getNMessages(int count) {
+    private TextMessage[] getNMessages(int count) {
         int i=0;
         int p = currentPointer-1;
-        String[] recent= new String[count];
+        TextMessage[] recent= new TextMessage[count];
         while(i<count){
             int z = p-i;
             if(z<0)
@@ -36,14 +43,32 @@ public class MessagesStore {
         }
         return recent;
     }
+//
+//    public void putMessages(String messages[]){
+//        if(messages.length<1)
+//            return;
+//        for(String m:messages){
+//            currentCount +=1;
+//            this.messages[currentPointer] = TextMessage.createForRemoteUser(m,System.currentTimeMillis(),this.userID);
+//            currentPointer = (currentPointer+1)%maxLimit;
+//        }
+//    }
 
-    public void putMessages(String messages[]){
-        if(messages.length<1)
-            return;
-        for(String m:messages){
-            currentCount +=1;
-            this.messages[currentPointer] = m;
-            currentPointer = (currentPointer+1)%maxLimit;
-        }
+    public boolean isEmpty() {
+        if(currentCount<1)
+            return true;
+        else
+            return false;
+    }
+
+    public void putRemoteMessage(String text,String user) {
+        currentCount +=1;
+        this.messages[currentPointer] = TextMessage.createForRemoteUser(text,System.currentTimeMillis(),user);
+        currentPointer = (currentPointer+1)%maxLimit;
+    }
+    public void putLocalMessage(String text) {
+        currentCount +=1;
+        this.messages[currentPointer] = TextMessage.createForLocalUser(text,System.currentTimeMillis());
+        currentPointer = (currentPointer+1)%maxLimit;
     }
 }

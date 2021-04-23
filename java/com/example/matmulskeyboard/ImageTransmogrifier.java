@@ -1,6 +1,8 @@
 package com.example.matmulskeyboard;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
@@ -8,6 +10,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Display;
 import android.view.Surface;
 import android.view.WindowManager;
@@ -26,6 +29,7 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
     private final int density;
 //    private final TextExtractorFromImage textExtractor;
     private Bitmap latestBitmap = null;
+    private int OFFSET_TOP,OFFSET_BOTTOM;
 
     public int getWidth() {
         return width;
@@ -50,6 +54,7 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
         return imageReader.getSurface();
     }
 
+    @SuppressLint("WrongConstant")
     ImageTransmogrifier(MyInputMethodService svc) {
         this.svc = svc;
         DisplayMetrics displayMetrics = new DisplayMetrics();
@@ -67,6 +72,17 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
         imageReader = ImageReader.newInstance(width, height,
                 PixelFormat.RGBA_8888, 1);
         imageReader.setOnImageAvailableListener(this, svc.getHandler());
+        Resources r = svc.getResources() ;
+        OFFSET_BOTTOM = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                40f+18f+30f,
+                r.getDisplayMetrics()
+        );
+        OFFSET_TOP = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                12f,
+                r.getDisplayMetrics()
+        );
 //        textExtractor = new TextExtractorFromImage(svc.getApplicationContext(),ENGLISH_LANGUAGE);
     }
 
@@ -94,14 +110,13 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
                 image.close();
             }
             ByteArrayOutputStream baos=new ByteArrayOutputStream();
-            Bitmap cropped=Bitmap.createBitmap(latestBitmap, 0, 0,
-                    width, height);
+            Bitmap cropped=Bitmap.createBitmap(latestBitmap, 0, OFFSET_TOP,
+                    width, height-OFFSET_BOTTOM);
             cropped.compress(Bitmap.CompressFormat.PNG, 100, baos);
             byte[] newPng=baos.toByteArray();
             svc.updateImage(newPng);
             svc.updateBitmap(cropped);
 //            svc.updateExtractedText(textExtractor.getFristLineOCRResult(cropped));
-            Log.d("UPDATED_IMAGE","NEW_IMAGE_UPDATED ");
         }
     }
 

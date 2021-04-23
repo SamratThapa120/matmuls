@@ -33,6 +33,7 @@ import android.widget.TextView;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.mlkit.nl.smartreply.SmartReplySuggestion;
 import com.google.mlkit.nl.smartreply.SmartReplySuggestionResult;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
@@ -42,6 +43,7 @@ import com.google.mlkit.vision.text.TextRecognizer;
 
 import java.io.Serializable;
 
+import java.util.List;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -64,7 +66,7 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
 
     private KeyboardView keyboardView;
     private Keyboard keyboard;
-    private TextView predictionView;
+    private TextView predictionView1,predictionView2;
     private boolean caps = false;
     private int SCREENSHOT_TIMER = 5000;
     private ScreenshotManager screenshotManager;
@@ -141,15 +143,18 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     @Override
     public View onCreateInputView() {
         View view =  getLayoutInflater().inflate(R.layout.keyboard_view, null);
-        predictionView = (TextView) view.findViewById(R.id.keyboard_options_display);
-        predictionView.setOnClickListener(new View.OnClickListener() {
+        predictionView1 = (TextView) view.findViewById(R.id.keyboard_options_display1);
+        predictionView2 = (TextView) view.findViewById(R.id.keyboard_options_display2);
+        View.OnClickListener clickListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 InputConnection inputConnection = getCurrentInputConnection();
                 inputConnection.commitText(((TextView)v).getText(),1);
                 ((TextView)v).setText("");
             }
-        });
+        };
+        predictionView1.setOnClickListener(clickListener);
+        predictionView2.setOnClickListener(clickListener);
         keyboardView = (KeyboardView) view.findViewById(R.id.keyboard_view_keys);
         keyboard = new Keyboard(this, R.xml.keys_layout);
         keyboardView.setKeyboard(keyboard);
@@ -256,7 +261,8 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
                             .addOnSuccessListener(new OnSuccessListener<Text>() {
                                 @Override
                                 public void onSuccess(Text result) {
-                                    predictionProducer.getPredictions(result);
+                                    predictionProducer.addMessages(result);
+                                    predictionProducer.newPredictions();
                                 }
                             })
                             .addOnFailureListener(
@@ -284,7 +290,11 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     }
 
     public void receivedPredictionResponse(SmartReplySuggestionResult result) {
-        predictionView.setText(result.getSuggestions().get(0).getText());
+        List<SmartReplySuggestion> sugg = result.getSuggestions();
+        if(sugg.size()>0)
+            predictionView1.setText(sugg.get(0).getText());
+        if(sugg.size()>1)
+            predictionView2.setText(sugg.get(1).getText());
     }
 
     public void setScreenCaptureIntent(Intent data) {
