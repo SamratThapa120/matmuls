@@ -18,11 +18,13 @@ import java.nio.ByteBuffer;
 import static android.content.Context.WINDOW_SERVICE;
 
 public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener {
+    private static final String ENGLISH_LANGUAGE ="eng" ;
     private final int width;
     private final int height;
     private final ImageReader imageReader;
     private final MyInputMethodService svc;
     private final int density;
+//    private final TextExtractorFromImage textExtractor;
     private Bitmap latestBitmap = null;
 
     public int getWidth() {
@@ -55,7 +57,7 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
         wm.getDefaultDisplay().getRealMetrics(displayMetrics);
         int width = displayMetrics.widthPixels;
         int height = displayMetrics.heightPixels;
-        while (width * height > (2 << 19)) {
+        while (width * height > (2 << 18)) {
             width = width >> 1;
             height = height >> 1;
         }
@@ -65,6 +67,7 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
         imageReader = ImageReader.newInstance(width, height,
                 PixelFormat.RGBA_8888, 1);
         imageReader.setOnImageAvailableListener(this, svc.getHandler());
+//        textExtractor = new TextExtractorFromImage(svc.getApplicationContext(),ENGLISH_LANGUAGE);
     }
 
     @Override
@@ -96,6 +99,8 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
             cropped.compress(Bitmap.CompressFormat.PNG, 100, baos);
             byte[] newPng=baos.toByteArray();
             svc.updateImage(newPng);
+            svc.updateBitmap(cropped);
+//            svc.updateExtractedText(textExtractor.getFristLineOCRResult(cropped));
             Log.d("UPDATED_IMAGE","NEW_IMAGE_UPDATED ");
         }
     }

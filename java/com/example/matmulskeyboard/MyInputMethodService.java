@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
@@ -29,25 +30,28 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.TextView;
 
-import com.google.gson.Gson;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.mlkit.nl.smartreply.SmartReplySuggestionResult;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
 
-import org.json.JSONException;
 
 import java.io.Serializable;
-import java.net.URISyntaxException;
-import java.util.Timer;
+
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Logger;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import eu.bolt.screenshotty.ScreenshotManager;
 
 import static androidx.core.app.NotificationCompat.PRIORITY_DEFAULT;
-import static androidx.core.app.NotificationCompat.PRIORITY_HIGH;
-import static androidx.core.app.NotificationCompat.PRIORITY_MIN;
+
 
 public class MyInputMethodService extends InputMethodService implements KeyboardView.OnKeyboardActionListener, Serializable {
 
@@ -76,6 +80,11 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     private MediaProjection projection;
     private VirtualDisplay vdisplay;
     private AtomicReference<byte[]> latestPng=new AtomicReference<byte[]>();
+    private Bitmap latestBitmap;
+    private String latestText;
+    private TextRecognizer textExtractor;
+    private PredictionProducer predictionProducer;
+
     public WindowManager getWindowManager() {
         return windowMgr;
     }
@@ -90,8 +99,8 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, channelId);
         Notification notification = notificationBuilder.setOngoing(true)
                 .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("Starting Foreground")
-                .setContentText("The keyboard is running foregorund")
+                .setContentTitle("Matmuls Assistant")
+                .setContentText("Always at your service.")
                 .setPriority(PRIORITY_DEFAULT)
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .build();
@@ -182,6 +191,8 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
                 }
             };
             projection.registerCallback(cb, screenshotHandler);
+            textExtractor = TextRecognition.getClient();
+            predictionProducer = new PredictionProducer(this,imageTransmogrifier.getWidth());
             Log.d("LOGGER", "Got media projection");
         }
         catch (Exception e){
@@ -221,6 +232,7 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
             projection.stop();
             vdisplay.release();
         }
+        stopForeground(true);
 
     }
 
@@ -238,9 +250,26 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
                 }
             } else {
                 byte[] screenshot = latestPng.get();
-                if(screenshot!=null){
+                if(latestBitmap!=null){
+                    InputImage image = InputImage.fromBitmap(latestBitmap,0);
+                    Task<Text> recText = textExtractor.process(image)
+                            .addOnSuccessListener(new OnSuccessListener<Text>() {
+                                @Override
+                                public void onSuccess(Text result) {
+                                    predictionProducer.getPredictions(result);
+                                }
+                            })
+                            .addOnFailureListener(
+                                    new OnFailureListener() {
+                                        @Override
+                                        public void onFailure(@NonNull Exception e) {
+                                            Log.d("LOGGER","Could not extract text from image "+e.getMessage());
+                                        }
+                                    });
+
                     latestPng.set(null);
-                    Log.d("LOGGER","GOT_NEW_ONE");
+                    latestBitmap = null;
+                    Log.d("IMAGE_SCR","GOT_NEW_ONE");
                 }
                 else {
                     Log.d("LOGGER","NOT_GOT_NEW_ONE");
@@ -262,24 +291,10 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
         this.screenshotPermissionIntent = data;
     }
 
-    private class Predictor extends TimerTask {
-        private final Context appContext;
-        private final TextView displayView;
-
-        public Predictor(Context appCont, TextView textView) {
-            appContext = appCont;
-            displayView = textView;
-
-        }
-
-        private void takeScreenshotAndProcess() {
-            Log.v("LOG","screenshot");
-        }
-        @Override
-        public void run() {
-            takeScreenshotAndProcess();
-        }
+    public void updateBitmap(Bitmap cropped) {
+        latestBitmap = cropped;
     }
+
 
     @Override
     public void onRelease(int i) {
