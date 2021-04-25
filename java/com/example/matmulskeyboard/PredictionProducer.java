@@ -8,33 +8,31 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.nl.smartreply.SmartReply;
 import com.google.mlkit.nl.smartreply.SmartReplyGenerator;
 import com.google.mlkit.nl.smartreply.SmartReplySuggestionResult;
-import com.google.mlkit.nl.smartreply.TextMessage;
 import com.google.mlkit.vision.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 import androidx.annotation.NonNull;
 
 public class PredictionProducer {
+    private static final String[] INV_WORDS_CONTAIN = {" am"," pm"," missed your"," minutes ago"," hours ago"};
+    private static final String[] INV_WORDS = {"seen","read","active"};
+
     private final SmartReplyGenerator smartReply;
     private final MyInputMethodService parentService;
     private final int middle_pixel;
-//    private MessagesStore historyRemote;
-//    private MessagesStore historyLocal;
-    private MessagesStore messgesHistory;
+    private ArrayList<MessagesStore> messagesHistory;
     private OnSuccessListener<? super SmartReplySuggestionResult> successListener;
     private OnFailureListener failureListener;
     private int CONTEXT_COUNT = 10;
-    private int STORE_WIDTH = 20;
+    private int STORE_WIDTH = 50;
+    private MessagesStore activeUserHistory;
 
     public PredictionProducer(MyInputMethodService svc,int img_width) {
         smartReply = SmartReply.getClient();
         middle_pixel = img_width/2;
-//        historyRemote = new MessagesStore(STORE_WIDTH,"Remote",true);
-//        historyLocal = new MessagesStore(STORE_WIDTH,"Local",false);
-        messgesHistory = new MessagesStore(STORE_WIDTH);
+        messagesHistory = new ArrayList<MessagesStore>();
         parentService = svc;
         successListener = new OnSuccessListener() {
             @Override
@@ -55,35 +53,95 @@ public class PredictionProducer {
         };
     }
     public void addMessages(Text result){
-        String resultText = result.getText();
-        for (Text.TextBlock block : result.getTextBlocks()) {
-            Point[] blockCornerPoints = block.getCornerPoints();
-            if((blockCornerPoints[0].x+blockCornerPoints[1].x)/2<middle_pixel) {
-                Log.d("LOGGER_pred", "ADDED to remote " + block.getText());
-                messgesHistory.putRemoteMessage(block.getText(),"USER");
+        ArrayList<String> messages= new ArrayList<String>(50);
+        ArrayList<Boolean> remLocal= new ArrayList<Boolean>(50);
+        List<Text.TextBlock> textBlocks = result.getTextBlocks();
+        setActiveUser(textBlocks.get(0).getLines().get(0).getText());    //Assuming that the first line will always have the username of the remote user.
+        String last_message = activeUserHistory.getLastMessage();
+        Log.d("LOGGER","last mess: "+last_message);
+        for(int x=textBlocks.size()-1;x>=0;x--) {
+            List<Text.Line> lines = textBlocks.get(x).getLines();
+            for(int y=lines.size()-1;y>=0;y--) {
+                Text.Line line = lines.get(y);
+                Point[] blockCornerPoints = line.getCornerPoints();
+                int gravity = (blockCornerPoints[0].x+blockCornerPoints[1].x)/2;
+                if(Math.abs(gravity-middle_pixel)<5){ //Ignores text at the centre. Usually time and date of conversation.
+                    continue;
+                }
+                String text = line.getText();
+                if(last_message !=null) {
+                    if (text.equals(last_message)) {
+                        for (int z = messages.size() - 1; z >= 0; z--) {
+                            if (remLocal.get(z)) {
+                                Log.d("LOGGER_pred", "ADDED to remote " + text);
+                                activeUserHistory.putRemoteMessage(messages.get(z));
+                            } else {
+                                activeUserHistory.putLocalMessage(messages.get(z));
+                                Log.d("LOGGER_pred", "ADDED to local " + text);
+
+                            }
+                        }
+                        return;
+                    }
+                }
+                if(unnecessaryText(text))
+                    continue;
+                messages.add(text);
+                if(gravity<middle_pixel) { //Remote messages are aligned to the left of the screen
+                    remLocal.add(true);
+                }
+                else { //Local messages are aligned to the right of the screen
+                    remLocal.add(false);
+                }
+            }
+        }
+        for(int z=messages.size()-1;z>=0;z--){
+            if(remLocal.get(z)) {
+                Log.d("LOGGER_pred", "ADDED to remote " + messages.get(z));
+                activeUserHistory.putRemoteMessage(messages.get(z));
             }
             else {
-                Log.d("LOGGER_pred","ADDED to local "+block.getText());
-                messgesHistory.putLocalMessage(block.getText());
+                activeUserHistory.putLocalMessage(messages.get(z));
+                Log.d("LOGGER_pred","ADDED to local "+messages.get(z));
+
             }
-//            Rect blockFrame = block.getBoundingBox();
-//            for (Text.Line line : block.getLines()) {
-//                String lineText = line.getText();
-//                Point[] lineCornerPoints = line.getCornerPoints();
-//                Rect lineFrame = line.getBoundingBox();
-//                for (Text.Element element : line.getElements()) {
-//                    String elementText = element.getText();
-//                    Point[] elementCornerPoints = element.getCornerPoints();
-//                    Rect elementFrame = element.getBoundingBox();
-//                }
-//            }
         }
     }
+
+    private boolean unnecessaryText(String text) {
+        text = text.toLowerCase();
+        for(String inv: INV_WORDS_CONTAIN){
+            if(text.contains(inv))
+                return true;
+        }
+        for(String inv: INV_WORDS){
+            if(text.equals(inv))
+                return true;
+        }
+        return false;
+    }
+
+    private void setActiveUser(String remote) {
+        for(MessagesStore history:messagesHistory){
+            if(history.getUserID().equals(remote)) {
+                activeUserHistory = history;
+                Log.d("LOGGER_pred","Switched to user :"+remote);
+                return;
+            }
+        }
+        activeUserHistory = new MessagesStore(STORE_WIDTH,remote);
+        Log.d("LOGGER_pred","Switched to a new user :"+remote);
+        messagesHistory.add(activeUserHistory);
+    }
+
+    public void closePredictor(){
+        smartReply.close();
+    }
     public void newPredictions(){
-        if (messgesHistory.isEmpty()){
+        if (activeUserHistory.isEmpty()){
             return;
         }
-        smartReply.suggestReplies(messgesHistory.getRecentMessages(CONTEXT_COUNT))
+        smartReply.suggestReplies(activeUserHistory.getRecentMessages(CONTEXT_COUNT))
                 .addOnSuccessListener(successListener)
                 .addOnFailureListener(failureListener);
     }

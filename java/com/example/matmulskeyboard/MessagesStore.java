@@ -11,13 +11,12 @@ public class MessagesStore {
     private int currentCount;
     private int currentPointer;
     private String userID;
-
-    public MessagesStore(int maxLimit) {
+    public MessagesStore(int maxLimit, String remote) {
         this.maxLimit = maxLimit;
         this.currentCount = 0;
         this.currentPointer = 0;
         this.messages = new TextMessage[maxLimit];
-        this.userID = userID;
+        this.userID = remote;
     }
     public List<TextMessage> getRecentMessages(int count){
         if(count>maxLimit)
@@ -61,14 +60,25 @@ public class MessagesStore {
             return false;
     }
 
-    public void putRemoteMessage(String text,String user) {
+    public void putRemoteMessage(String text) {
         currentCount +=1;
-        this.messages[currentPointer] = TextMessage.createForRemoteUser(text,System.currentTimeMillis(),user);
+        this.messages[currentPointer] = TextMessage.createForRemoteUser(text,System.currentTimeMillis(),this.userID);
         currentPointer = (currentPointer+1)%maxLimit;
     }
     public void putLocalMessage(String text) {
         currentCount +=1;
         this.messages[currentPointer] = TextMessage.createForLocalUser(text,System.currentTimeMillis());
         currentPointer = (currentPointer+1)%maxLimit;
+    }
+
+    public String getUserID() {
+        return this.userID;
+    }
+
+    public String getLastMessage() {
+        if(currentCount==0)
+            return null;
+        else
+            return messages[(currentPointer+maxLimit-1)%maxLimit].zza();
     }
 }

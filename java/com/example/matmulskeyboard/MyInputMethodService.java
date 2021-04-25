@@ -55,7 +55,7 @@ import eu.bolt.screenshotty.ScreenshotManager;
 import static androidx.core.app.NotificationCompat.PRIORITY_DEFAULT;
 
 
-public class MyInputMethodService extends InputMethodService implements KeyboardView.OnKeyboardActionListener, Serializable {
+public class MyInputMethodService extends InputMethodService implements KeyboardView.OnKeyboardActionListener{
 
     public static final String EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE";
     public static final String EXTRA_RESULT_INTENT = "EXTRA_RESULT_INTENT";
@@ -68,7 +68,7 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     private Keyboard keyboard;
     private TextView predictionView1,predictionView2;
     private boolean caps = false;
-    private int SCREENSHOT_TIMER = 5000;
+    private int SCREENSHOT_TIMER = 2000;
     private ScreenshotManager screenshotManager;
     private MediaProjectionManager mgr;
     private WindowManager windowMgr;
@@ -81,7 +81,6 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     private ImageTransmogrifier imageTransmogrifier;
     private MediaProjection projection;
     private VirtualDisplay vdisplay;
-    private AtomicReference<byte[]> latestPng=new AtomicReference<byte[]>();
     private Bitmap latestBitmap;
     private String latestText;
     private TextRecognizer textExtractor;
@@ -237,6 +236,8 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
             projection.stop();
             vdisplay.release();
         }
+        if(predictionProducer!=null)
+            predictionProducer.closePredictor();
         stopForeground(true);
 
     }
@@ -254,7 +255,6 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
                     initializeScreenCapturing();
                 }
             } else {
-                byte[] screenshot = latestPng.get();
                 if(latestBitmap!=null){
                     InputImage image = InputImage.fromBitmap(latestBitmap,0);
                     Task<Text> recText = textExtractor.process(image)
@@ -273,7 +273,6 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
                                         }
                                     });
 
-                    latestPng.set(null);
                     latestBitmap = null;
                     Log.d("IMAGE_SCR","GOT_NEW_ONE");
                 }
@@ -285,9 +284,6 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
         }
     }
 
-    public void updateImage(byte[] newPng) {
-        latestPng.set(newPng);
-    }
 
     public void receivedPredictionResponse(SmartReplySuggestionResult result) {
         List<SmartReplySuggestion> sugg = result.getSuggestions();
