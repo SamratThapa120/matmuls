@@ -65,14 +65,12 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     static final int VIRT_DISPLAY_FLAGS =DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC;
     private static final int START_FOREGROUND = 1;
     private static final String USE_SERVICES = "USE_SERVICES";
-    public static final String KEYBOARD_REFERENCE = "KEYBOARD_REFERENCE" ;
 
     private KeyboardView keyboardView;
     private Keyboard keyboard;
     private TextView predictionView1,predictionView2;
     private boolean caps = false;
     private int SCREENSHOT_TIMER = 2000;
-    private ScreenshotManager screenshotManager;
     private MediaProjectionManager mgr;
     private WindowManager windowMgr;
     private long beforeTime;
@@ -85,15 +83,11 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     private MediaProjection projection;
     private VirtualDisplay vdisplay;
     private Bitmap latestBitmap;
-    private String latestText;
     private TextRecognizer textExtractor;
     private PredictionProducer predictionProducer;
     private Switch enableServices;
     private boolean useServices;
 
-    public WindowManager getWindowManager() {
-        return windowMgr;
-    }
 
     public Handler getHandler() {
         return screenshotHandler;

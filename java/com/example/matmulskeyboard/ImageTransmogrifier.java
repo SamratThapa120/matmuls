@@ -113,7 +113,6 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
             Bitmap cropped=Bitmap.createBitmap(latestBitmap, 0, OFFSET_TOP,
                     width, height-OFFSET_BOTTOM);
             cropped.compress(Bitmap.CompressFormat.PNG, 100, baos);
-            byte[] newPng=baos.toByteArray();
             svc.updateBitmap(cropped);
 //            svc.updateExtractedText(textExtractor.getFristLineOCRResult(cropped));
         }
