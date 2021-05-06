@@ -28,6 +28,8 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
+import android.widget.CompoundButton;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import com.google.android.gms.tasks.OnFailureListener;
@@ -62,6 +64,7 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     public static final String SCREENSHOT_HANDLER_THREAD = "SCREENSHOT_HANDLER_THREAD";
     static final int VIRT_DISPLAY_FLAGS =DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC;
     private static final int START_FOREGROUND = 1;
+    private static final String USE_SERVICES = "USE_SERVICES";
     public static final String KEYBOARD_REFERENCE = "KEYBOARD_REFERENCE" ;
 
     private KeyboardView keyboardView;
@@ -85,6 +88,8 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     private String latestText;
     private TextRecognizer textExtractor;
     private PredictionProducer predictionProducer;
+    private Switch enableServices;
+    private boolean useServices;
 
     public WindowManager getWindowManager() {
         return windowMgr;
@@ -144,12 +149,32 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
         View view =  getLayoutInflater().inflate(R.layout.keyboard_view, null);
         predictionView1 = (TextView) view.findViewById(R.id.keyboard_options_display1);
         predictionView2 = (TextView) view.findViewById(R.id.keyboard_options_display2);
+
+        enableServices = (Switch) view.findViewById(R.id.enable_services_switch);
+        enableServices.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                useServices = isChecked;
+                if(!isChecked) {
+                    stopServices();
+                    predictionView2.setText("");
+                    predictionView1.setText("");
+                }
+            }
+        });
+        SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        if(pref.contains(USE_SERVICES))
+            useServices  = pref.getBoolean(USE_SERVICES,true);
+        else
+            useServices=true;
+        enableServices.setChecked(useServices);
         View.OnClickListener clickListener = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 InputConnection inputConnection = getCurrentInputConnection();
                 inputConnection.commitText(((TextView)v).getText(),1);
-                ((TextView)v).setText("");
+                predictionView1.setText("");
+                predictionView2.setText("");
             }
         };
         predictionView1.setOnClickListener(clickListener);
@@ -229,6 +254,12 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
     @Override
     public void onFinishInputView(boolean finishingInput) {
         super.onFinishInputView(finishingInput);
+        predictionView2.setText("");
+        predictionView1.setText("");
+        stopServices();
+    }
+
+    private void stopServices() {
         if(screenshotHandlerThread!=null){
             screenshotHandlerThread.quit();
         }
@@ -238,12 +269,15 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
         }
         if(predictionProducer!=null)
             predictionProducer.closePredictor();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        preferences.edit().putBoolean(USE_SERVICES,useServices).commit();
         stopForeground(true);
-
     }
 
     @Override
     public void onPress(int i) {
+        if(!useServices)
+            return;
         if ((System.currentTimeMillis() - beforeTime) > SCREENSHOT_TIMER) {
             if (!hasPermission) {
                 checkForScreenshotPermission();
@@ -257,27 +291,23 @@ public class MyInputMethodService extends InputMethodService implements Keyboard
             } else {
                 if(latestBitmap!=null){
                     InputImage image = InputImage.fromBitmap(latestBitmap,0);
-                    Task<Text> recText = textExtractor.process(image)
-                            .addOnSuccessListener(new OnSuccessListener<Text>() {
-                                @Override
-                                public void onSuccess(Text result) {
-                                    predictionProducer.addMessages(result);
-                                    predictionProducer.newPredictions();
-                                }
-                            })
-                            .addOnFailureListener(
-                                    new OnFailureListener() {
-                                        @Override
-                                        public void onFailure(@NonNull Exception e) {
-                                            Log.d("LOGGER","Could not extract text from image "+e.getMessage());
-                                        }
-                                    });
+                    textExtractor.process(image)
+                        .addOnSuccessListener(new OnSuccessListener<Text>() {
+                            @Override
+                            public void onSuccess(Text result) {
+                                predictionProducer.addMessages(result);
+                                predictionProducer.newPredictions();
+                            }
+                        })
+                        .addOnFailureListener(
+                                new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception e) {
+                                        Log.d("LOGGER","Could not extract text from image "+e.getMessage());
+                                    }
+                                });
 
                     latestBitmap = null;
-                    Log.d("IMAGE_SCR","GOT_NEW_ONE");
-                }
-                else {
-                    Log.d("LOGGER","NOT_GOT_NEW_ONE");
                 }
                 beforeTime = System.currentTimeMillis();
             }

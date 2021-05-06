@@ -31,7 +31,7 @@ public class TextExtractorFromImage {
                     Log.d("LOGGER", "ERROR: Creation of directory " + path + " on sdcard failed");
                     return;
                 } else {
-                    Log.d("LOGGER", "Czsreated directory " + path + " on sdcard");
+                    Log.d("LOGGER", "Created directory " + path + " on sdcard");
                 }
             }
 

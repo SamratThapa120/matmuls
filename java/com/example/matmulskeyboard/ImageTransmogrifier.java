@@ -75,7 +75,7 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
         Resources r = svc.getResources() ;
         OFFSET_BOTTOM = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP,
-                40f+18f+30f,
+                50f+18f+40f,
                 r.getDisplayMetrics()
         );
         OFFSET_TOP = (int) TypedValue.applyDimension(

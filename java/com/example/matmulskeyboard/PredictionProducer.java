@@ -10,6 +10,9 @@ import com.google.mlkit.nl.smartreply.SmartReplyGenerator;
 import com.google.mlkit.nl.smartreply.SmartReplySuggestionResult;
 import com.google.mlkit.vision.text.Text;
 
+import org.json.JSONException;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,8 +24,8 @@ public class PredictionProducer {
 
     private final SmartReplyGenerator smartReply;
     private final MyInputMethodService parentService;
+    private boolean hasNewInfo;
     private final int middle_pixel;
-    private ArrayList<MessagesStore> messagesHistory;
     private OnSuccessListener<? super SmartReplySuggestionResult> successListener;
     private OnFailureListener failureListener;
     private int CONTEXT_COUNT = 10;
@@ -32,7 +35,6 @@ public class PredictionProducer {
     public PredictionProducer(MyInputMethodService svc,int img_width) {
         smartReply = SmartReply.getClient();
         middle_pixel = img_width/2;
-        messagesHistory = new ArrayList<MessagesStore>();
         parentService = svc;
         successListener = new OnSuccessListener() {
             @Override
@@ -56,9 +58,9 @@ public class PredictionProducer {
         ArrayList<String> messages= new ArrayList<String>(50);
         ArrayList<Boolean> remLocal= new ArrayList<Boolean>(50);
         List<Text.TextBlock> textBlocks = result.getTextBlocks();
-        setActiveUser(textBlocks.get(0).getLines().get(0).getText());    //Assuming that the first line will always have the username of the remote user.
+        if(activeUserHistory==null)
+            setActiveUser(textBlocks.get(0).getLines().get(0).getText());    //Assuming that the first line will always have the username of the remote user.
         String last_message = activeUserHistory.getLastMessage();
-        Log.d("LOGGER","last mess: "+last_message);
         for(int x=textBlocks.size()-1;x>=0;x--) {
             List<Text.Line> lines = textBlocks.get(x).getLines();
             for(int y=lines.size()-1;y>=0;y--) {
@@ -122,25 +124,24 @@ public class PredictionProducer {
     }
 
     private void setActiveUser(String remote) {
-        for(MessagesStore history:messagesHistory){
-            if(history.getUserID().equals(remote)) {
-                activeUserHistory = history;
-                Log.d("LOGGER_pred","Switched to user :"+remote);
-                return;
-            }
-        }
-        activeUserHistory = new MessagesStore(STORE_WIDTH,remote);
-        Log.d("LOGGER_pred","Switched to a new user :"+remote);
-        messagesHistory.add(activeUserHistory);
+        activeUserHistory = new MessagesStore(parentService.getApplicationContext(),STORE_WIDTH,remote);
+        Log.d("LOGGER_pred","Switched to user :"+remote);
     }
 
     public void closePredictor(){
         smartReply.close();
+        try {
+            activeUserHistory.saveToFile();
+            Log.d("LOGGER","SAVED USER DATA");
+        } catch (Exception e) {
+            Log.d("LOGGER","Failed to save "+e.getMessage());
+        }
     }
     public void newPredictions(){
-        if (activeUserHistory.isEmpty()){
+        if (activeUserHistory.isEmpty() && !hasNewInfo){
             return;
         }
+        hasNewInfo=false;
         smartReply.suggestReplies(activeUserHistory.getRecentMessages(CONTEXT_COUNT))
                 .addOnSuccessListener(successListener)
                 .addOnFailureListener(failureListener);
